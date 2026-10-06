@@ -7,10 +7,13 @@ authors = [
     { name = "c-lestic-ece", email = "chloe.lestic@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "faker>=40.41.0",
+]
 
 [project.scripts]
-ece-adaltas-lestic = "ece_adaltas_lestic:main"
+dataset-users = "ece_adaltas_lestic.dataset_users:main"
+dataset-orders = "ece_adaltas_lestic.dataset_orders:main"
 
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
