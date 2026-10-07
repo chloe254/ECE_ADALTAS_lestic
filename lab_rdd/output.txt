@@ -1,0 +1,155 @@
+Spark 4.1.1 | UI: http://vscode-pyspark-946487-0.vscode-pyspark-946487.user-c-lestic-ece.svc.cluster.local:4040 | defaultParallelism: 2 | defaultMinPartitions: 2
+
+======================================================================
+RDD creation and partitions
+======================================================================
+users_lines partitions : 2
+orders_lines partitions: 2
+after repartition(8)   : 8
+after coalesce(1)      : 1
+--- lineage repartition(8) ---
+(8) MapPartitionsRDD[8] at coalesce at NativeMethodAccessorImpl.java:0 []
+ |  CoalescedRDD[7] at coalesce at NativeMethodAccessorImpl.java:0 []
+ |  ShuffledRDD[6] at coalesce at NativeMethodAccessorImpl.java:0 []
+ +-(2) MapPartitionsRDD[5] at coalesce at NativeMethodAccessorImpl.java:0 []
+    |  PythonRDD[4] at RDD at PythonRDD.scala:58 []
+    |  orders.csv MapPartitionsRDD[3] at textFile at NativeMethodAccessorImpl.java:0 []
+    |  orders.csv HadoopRDD[2] at textFile at NativeMethodAccessorImpl.java:0 []
+--- lineage coalesce(1) ---
+(1) CoalescedRDD[10] at coalesce at NativeMethodAccessorImpl.java:0 []
+ |  orders.csv MapPartitionsRDD[3] at textFile at NativeMethodAccessorImpl.java:0 []
+ |  orders.csv HadoopRDD[2] at textFile at NativeMethodAccessorImpl.java:0 []
+
+======================================================================
+Lazy evaluation and lineage
+======================================================================
+header: uuid,user_uuid,date,quantity,product
+(2) PythonRDD[12] at RDD at PythonRDD.scala:58 []
+ |  orders.csv MapPartitionsRDD[3] at textFile at NativeMethodAccessorImpl.java:0 []
+ |  orders.csv HadoopRDD[2] at textFile at NativeMethodAccessorImpl.java:0 []
+count #1: 2829
+count #2: 2829
+stages created by the 2 counts (no cache):
+  stage   1 | tasks= 2 | shuffleWrite=      0 B (0 rec) | shuffleRead=      0 B (0 rec) | count at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:74
+  stage   2 | tasks= 2 | shuffleWrite=      0 B (0 rec) | shuffleRead=      0 B (0 rec) | count at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:75
+
+======================================================================
+The cost of no schema: the multiline address
+======================================================================
+'uuid,username,name,sex,address,mail,birthdate'
+'bdd640fb-0667-4ad1-9c80-317fa3b1799d,garzaanthony,Charles Garcia,M,"908 Jennifer Squares'
+'Robinsonshire, KY 01352",helenpeterson@gmail.com,1935-09-27'
+'17be3111-1a2a-43ed-962b-0f79c37459ee,blairamanda,Ryan Munoz,M,"Unit 6184 Box 9593'
+'DPO AP 09617",stanleykendra@gmail.com,2009-12-23'
+'47294739-614f-43d7-99db-3ad0ddd1dfb2,elizabethmiles,Jacob Wood,M,"283 Steven Groves'
+users_lines.count(): 101
+users_records.count(): 50
+users via spark.read.csv(multiLine=True): 50
+
+======================================================================
+Manual parsing of orders
+======================================================================
+{'order_id': '2339ba19-2563-4cc3-8a97-ebf555d596af', 'user_id': 'bdd640fb-0667-4ad1-9c80-317fa3b1799d', 'date': '2020-01-01 00:02:17.891488+00:00', 'quantity': 4, 'product': 'drink'}
+{'order_id': 'b49e04cc-c243-49e7-a387-eaf6d4c3a832', 'user_id': 'bdd640fb-0667-4ad1-9c80-317fa3b1799d', 'date': '2020-01-01 01:28:08.796458+00:00', 'quantity': 5, 'product': 'bread'}
+{'order_id': '41843b03-04dd-4054-9448-23f7e7e646c7', 'user_id': 'bdd640fb-0667-4ad1-9c80-317fa3b1799d', 'date': '2020-01-01 02:12:56.357080+00:00', 'quantity': 2, 'product': 'donut'}
+extra comma -> ValueError : too many values to unpack (expected 5)
+
+======================================================================
+Key-value RDDs: reduceByKey vs groupByKey
+======================================================================
+reduceByKey: [('f143262f-dc5c-4eed-8da0-365bf89897b9', 12), ('969b6662-0562-4059-968c-c69b1064005c', 40), ('ce9e1a11-fcbb-4e59-bbdd-cf7c9c96e9ec', 253), ('5563f616-00e8-4ece-8b49-452d46d483f3', 57), ('f94d6204-6808-493f-9fed-2c43e256a6dc', 175)]
+stages (reduceByKey):
+  stage  11 | tasks= 2 | shuffleWrite=   2513 B (8 rec) | shuffleRead=      0 B (0 rec) | reduceByKey at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:119
+  stage  12 | tasks= 1 | shuffleWrite=      0 B (0 rec) | shuffleRead=   1065 B (4 rec) | runJob at PythonRDD.scala:191
+groupByKey : [('f143262f-dc5c-4eed-8da0-365bf89897b9', 12), ('969b6662-0562-4059-968c-c69b1064005c', 40), ('ce9e1a11-fcbb-4e59-bbdd-cf7c9c96e9ec', 253), ('5563f616-00e8-4ece-8b49-452d46d483f3', 57), ('f94d6204-6808-493f-9fed-2c43e256a6dc', 175)]
+stages (groupByKey):
+  stage  13 | tasks= 2 | shuffleWrite=   6230 B (8 rec) | shuffleRead=      0 B (0 rec) | groupByKey at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:128
+  stage  14 | tasks= 1 | shuffleWrite=      0 B (0 rec) | shuffleRead=   2643 B (4 rec) | runJob at PythonRDD.scala:191
+same result: True
+
+======================================================================
+Manual deduplication
+======================================================================
+orders_rdd.count(), orders_dedup.count(): 2829 2829
+order_ids appearing more than once: 0 []
+
+======================================================================
+Joining orders with users
+======================================================================
+('f143262f-dc5c-4eed-8da0-365bf89897b9', ({'order_id': 'f1f7d904-1307-4157-98c1-28e7d6cd3155', 'user_id': 'f143262f-dc5c-4eed-8da0-365bf89897b9', 'date': '2020-01-07 17:49:04.785279+00:00', 'quantity': 1, 'product': 'bread'}, 'kayla51'))
+('f143262f-dc5c-4eed-8da0-365bf89897b9', ({'order_id': 'a175a9c3-d7b1-42a9-a332-a50e6992896e', 'user_id': 'f143262f-dc5c-4eed-8da0-365bf89897b9', 'date': '2020-01-07 18:13:53.160212+00:00', 'quantity': 2, 'product': 'bread'}, 'kayla51'))
+('f143262f-dc5c-4eed-8da0-365bf89897b9', ({'order_id': '5f8a14bd-74bd-4c93-8177-b66137fe032c', 'user_id': 'f143262f-dc5c-4eed-8da0-365bf89897b9', 'date': '2020-01-07 19:03:37.620428+00:00', 'quantity': 5, 'product': 'croissant'}, 'kayla51'))
+enriched.count(): 2829
+(4) PythonRDD[65] at RDD at PythonRDD.scala:58 []
+ |  MapPartitionsRDD[62] at mapPartitions at PythonRDD.scala:170 []
+ |  ShuffledRDD[61] at partitionBy at NativeMethodAccessorImpl.java:0 []
+ +-(4) PairwiseRDD[60] at join at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:167 []
+    |  PythonRDD[59] at join at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:167 []
+    |  UnionRDD[58] at union at NativeMethodAccessorImpl.java:0 []
+    |  PythonRDD[56] at RDD at PythonRDD.scala:58 []
+    |  PythonRDD[29] at RDD at PythonRDD.scala:58 []
+    |      CachedPartitions: 2; MemorySize: 168.0 KiB; DiskSize: 0.0 B
+    |  orders.csv MapPartitionsRDD[3] at textFile at NativeMethodAccessorImpl.java:0 []
+    |  orders.csv HadoopRDD[2] at textFile at NativeMethodAccessorImpl.java:0 []
+    |  PythonRDD[57] at RDD at PythonRDD.scala:58 []
+    |  users.csv MapPartitionsRDD[1] at textFile at NativeMethodAccessorImpl.java:0 []
+    |  users.csv HadoopRDD[0] at textFile at NativeMethodAccessorImpl.java:0 []
+leftOuterJoin count: 2829 | orders without user: 0
+co-partitioned join count: 2829
+stages for co-partitioned join (expect a single stage, no shuffle):
+  stage  42 | tasks= 4 | shuffleWrite=      0 B (0 rec) | shuffleRead=      0 B (0 rec) | count at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:182
+
+======================================================================
+Exercise 1: aggregateByKey -> (order_count, total_quantity), average
+======================================================================
+f143262f-dc5c-4eed-8da0-365bf89897b9 (4, 12) avg = 3.0
+969b6662-0562-4059-968c-c69b1064005c (12, 40) avg = 3.333
+ce9e1a11-fcbb-4e59-bbdd-cf7c9c96e9ec (85, 253) avg = 2.976
+5563f616-00e8-4ece-8b49-452d46d483f3 (21, 57) avg = 2.714
+f94d6204-6808-493f-9fed-2c43e256a6dc (49, 175) avg = 3.571
+check totals match reduceByKey: True
+top 3 average quantity: [('f94d6204-6808-493f-9fed-2c43e256a6dc', 3.571), ('d47d577b-fa5a-41ca-859d-d55d4b943e30', 3.478), ('82af085c-138d-494c-ab0a-beddc77444cb', 3.389)]
+
+======================================================================
+Exercise 2: fake user_id + leftOuterJoin
+======================================================================
+orders with no matching user: 1
+[('00000000-0000-0000-0000-000000000000', ({'order_id': 'fake-order-1', 'user_id': '00000000-0000-0000-0000-000000000000', 'date': '2026-10-07 00:00:00+00:00', 'quantity': 1, 'product': 'ghost'}, None))]
+
+======================================================================
+Exercise 3: DataFrame API equivalent
+======================================================================
++------------------------------------+-------------+
+|user_uuid                           |sum(quantity)|
++------------------------------------+-------------+
+|d47d577b-fa5a-41ca-859d-d55d4b943e30|80           |
+|0b2f6d5c-700b-4d5f-b89f-72f32a60c652|190          |
+|d9e604b3-8412-4335-988c-656db61e5fdb|184          |
+|97fa7f04-8363-4007-9cae-9610c72c1fe3|285          |
+|2051acef-097a-4e10-b6fe-bc0e7ecddbaf|301          |
++------------------------------------+-------------+
+only showing top 5 rows
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- HashAggregate(keys=[user_uuid#36], functions=[sum(quantity#38)])
+   +- Exchange hashpartitioning(user_uuid#36, 200), ENSURE_REQUIREMENTS, [plan_id=107]
+      +- HashAggregate(keys=[user_uuid#36], functions=[partial_sum(quantity#38)])
+         +- FileScan csv [user_uuid#36,quantity#38] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/home/onyxia/work/ECE_ADALTAS_lestic/orders.csv], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<user_uuid:string,quantity:int>
+
+
+(2) PythonRDD[41] at collect at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:134 []
+ |  MapPartitionsRDD[34] at mapPartitions at PythonRDD.scala:170 []
+ |  ShuffledRDD[33] at partitionBy at NativeMethodAccessorImpl.java:0 []
+ +-(2) PairwiseRDD[32] at reduceByKey at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:119 []
+    |  PythonRDD[31] at reduceByKey at /home/onyxia/work/ECE_ADALTAS_lestic/lab_rdd/lab_pyspark_rdd.py:119 []
+    |  PythonRDD[29] at RDD at PythonRDD.scala:58 []
+    |      CachedPartitions: 2; MemorySize: 168.0 KiB; DiskSize: 0.0 B
+    |  orders.csv MapPartitionsRDD[3] at textFile at NativeMethodAccessorImpl.java:0 []
+    |  orders.csv HadoopRDD[2] at textFile at NativeMethodAccessorImpl.java:0 []
+DataFrame == RDD result: True
+
+======================================================================
+Exercise 4: cache vs no cache
+======================================================================
+no cache   times (ms): {'orders.count 1st': 130.5, 'orders.count median(5)': 205.2, 'user_quantity.count median(5)': 155.5} | Storage tab: []
+cache      times (ms): {'orders.count 1st': 288.0, 'orders.count median(5)': 126.4, 'user_quantity.count median(5)': 166.8} | Storage tab: [('orders_cached', 2, 172051)]
