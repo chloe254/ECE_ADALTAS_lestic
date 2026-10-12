@@ -1,0 +1,275 @@
+<pyspark.sql.session.SparkSession object at 0x7cab8ed1f770>
+Spark 4.1.1 | session timezone: Etc/UTC | startup s: 5.9
+
+==============================================================================
+Bronze layer
+==============================================================================
+root
+ |-- uuid: string (nullable = true)
+ |-- username: string (nullable = true)
+ |-- name: string (nullable = true)
+ |-- sex: string (nullable = true)
+ |-- address: string (nullable = true)
+ |-- mail: string (nullable = true)
+ |-- birthdate: date (nullable = true)
+
+root
+ |-- uuid: string (nullable = true)
+ |-- user_uuid: string (nullable = true)
+ |-- date: timestamp (nullable = true)
+ |-- quantity: integer (nullable = true)
+ |-- product: string (nullable = true)
+
++------------------------------------+--------------+--------------+---+---------------------------------------------+-----------------------+----------+
+|uuid                                |username      |name          |sex|address                                      |mail                   |birthdate |
++------------------------------------+--------------+--------------+---+---------------------------------------------+-----------------------+----------+
+|bdd640fb-0667-4ad1-9c80-317fa3b1799d|garzaanthony  |Charles Garcia|M  |908 Jennifer Squares\nRobinsonshire, KY 01352|helenpeterson@gmail.com|1935-09-27|
+|17be3111-1a2a-43ed-962b-0f79c37459ee|blairamanda   |Ryan Munoz    |M  |Unit 6184 Box 9593\nDPO AP 09617             |stanleykendra@gmail.com|2009-12-23|
+|47294739-614f-43d7-99db-3ad0ddd1dfb2|elizabethmiles|Jacob Wood    |M  |283 Steven Groves\nLake Mark, WI 07832       |lydiatrujillo@yahoo.com|1941-10-26|
++------------------------------------+--------------+--------------+---+---------------------------------------------+-----------------------+----------+
+only showing top 3 rows
++---------------------------------------------+
+|address                                      |
++---------------------------------------------+
+|908 Jennifer Squares\nRobinsonshire, KY 01352|
+|Unit 6184 Box 9593\nDPO AP 09617             |
+|283 Steven Groves\nLake Mark, WI 07832       |
++---------------------------------------------+
+only showing top 3 rows
+users_bronze: 50 | orders_bronze: 2829
+
+==============================================================================
+Silver users (DataFrame API)
+==============================================================================
++------------------------------------+--------------+------------------+---+-----------------------+----------+---------------------+--------------+-----+--------+
+|user_id                             |username      |name              |sex|email                  |birthdate |street               |city          |state|zip_code|
++------------------------------------+--------------+------------------+---+-----------------------+----------+---------------------+--------------+-----+--------+
+|bdd640fb-0667-4ad1-9c80-317fa3b1799d|garzaanthony  |Charles Garcia    |M  |helenpeterson@gmail.com|1935-09-27|908 Jennifer Squares |Robinsonshire |KY   |01352   |
+|17be3111-1a2a-43ed-962b-0f79c37459ee|blairamanda   |Ryan Munoz        |M  |stanleykendra@gmail.com|2009-12-23|Unit 6184 Box 9593   |NULL          |AP   |09617   |
+|47294739-614f-43d7-99db-3ad0ddd1dfb2|elizabethmiles|Jacob Wood        |M  |lydiatrujillo@yahoo.com|1941-10-26|283 Steven Groves    |Lake Mark     |WI   |07832   |
+|9132b63e-f162-47e4-a9c3-49e03602f8ac|ithomas       |Jonathan Wilkerson|M  |cruzcaitlin@yahoo.com  |1972-02-21|969 Cox Dam Suite 101|Lake Ernest   |TX   |55834   |
+|f143262f-dc5c-4eed-8da0-365bf89897b9|kayla51       |Ashley Dyer       |F  |georgetracy@gmail.com  |2018-07-15|0482 Monica Hills    |East Nathaniel|GA   |71198   |
++------------------------------------+--------------+------------------+---+-----------------------+----------+---------------------+--------------+-----+--------+
+only showing top 5 rows
+empty strings left -> state: 0 | zip_code: 0 | city NULL: 6
+
+==============================================================================
+Silver orders (DataFrame API + window dedup)
+==============================================================================
+Original: 2829
+With duplicates: 2832
++--------------------+-----+
+|            order_id|count|
++--------------------+-----+
+|2339ba19-2563-4cc...|    2|
+|b49e04cc-c243-49e...|    2|
+|41843b03-04dd-405...|    2|
++--------------------+-----+
+
+After deduplication: 2829
++--------+-----+
+|order_id|count|
++--------+-----+
++--------+-----+
+
+--- physical plan of stg_orders ---
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- Project [order_id#163, user_id#164, ordered_at#165, quantity#166, product#167]
+   +- Filter (row_number#216 = 1)
+      +- Window [row_number() windowspecdefinition(order_id#163, ordered_at#165 DESC NULLS LAST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS row_number#216], [order_id#163], [ordered_at#165 DESC NULLS LAST]
+         +- WindowGroupLimit [order_id#163], [ordered_at#165 DESC NULLS LAST], row_number(), 1, Final
+            +- Sort [order_id#163 ASC NULLS FIRST, ordered_at#165 DESC NULLS LAST], false, 0
+               +- Exchange hashpartitioning(order_id#163, 200), ENSURE_REQUIREMENTS, [plan_id=1133]
+                  +- WindowGroupLimit [order_id#163], [ordered_at#165 DESC NULLS LAST], row_number(), 1, Partial
+                     +- Sort [order_id#163 ASC NULLS FIRST, ordered_at#165 DESC NULLS LAST], false, 0
+                        +- Union
+                           :- Project [uuid#7 AS order_id#163, user_uuid#8 AS user_id#164, date#9 AS ordered_at#165, quantity#10 AS quantity#166, lower(trim(product#11, None)) AS product#167]
+                           :  +- FileScan csv [uuid#7,user_uuid#8,date#9,quantity#10,product#11] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[s3a://user-c-lestic-ece/bronze/orders.csv], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<uuid:string,user_uuid:string,date:timestamp,quantity:int,product:string>
+                           +- GlobalLimit 3, 0
+                              +- Exchange SinglePartition, ENSURE_REQUIREMENTS, [plan_id=1126]
+                                 +- LocalLimit 3
+                                    +- Project [uuid#178 AS order_id#183, user_uuid#179 AS user_id#184, date#180 AS ordered_at#185, quantity#181, lower(trim(product#182, None)) AS product#187]
+                                       +- FileScan csv [uuid#178,user_uuid#179,date#180,quantity#181,product#182] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[s3a://user-c-lestic-ece/bronze/orders.csv], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<uuid:string,user_uuid:string,date:timestamp,quantity:int,product:string>
+
+
+
+==============================================================================
+Same transformation with Spark SQL
+==============================================================================
++--------------------+--------------------+--------------------+--------+---------+
+|            order_id|             user_id|          ordered_at|quantity|  product|
++--------------------+--------------------+--------------------+--------+---------+
+|00060d5a-02b3-494...|f53d4330-cdda-44b...|2020-01-28 12:31:...|       2|   cookie|
+|0011be30-e268-492...|5f733a3e-5d28-4aa...|2020-04-18 22:51:...|       5|    bread|
+|002394e2-2ad9-468...|90164161-cfa7-41c...|2020-02-24 01:03:...|       4|   cookie|
+|0041f5d4-9549-463...|aab612c9-415d-474...|2020-03-17 18:29:...|       2|croissant|
+|00684d9c-d2bf-4c3...|97fa7f04-8363-400...|2020-03-30 13:36:...|       4|    bread|
++--------------------+--------------------+--------------------+--------+---------+
+only showing top 5 rows
+asserts OK
+--- physical plan of stg_orders_sql ---
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- Project [order_id#163, user_id#164, ordered_at#165, quantity#10, product#167]
+   +- Filter (rn#251 = 1)
+      +- Window [row_number() windowspecdefinition(order_id#163, ordered_at#165 DESC NULLS LAST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS rn#251], [order_id#163], [ordered_at#165 DESC NULLS LAST]
+         +- WindowGroupLimit [order_id#163], [ordered_at#165 DESC NULLS LAST], row_number(), 1, Final
+            +- Sort [order_id#163 ASC NULLS FIRST, ordered_at#165 DESC NULLS LAST], false, 0
+               +- Exchange hashpartitioning(order_id#163, 200), ENSURE_REQUIREMENTS, [plan_id=1718]
+                  +- WindowGroupLimit [order_id#163], [ordered_at#165 DESC NULLS LAST], row_number(), 1, Partial
+                     +- Sort [order_id#163 ASC NULLS FIRST, ordered_at#165 DESC NULLS LAST], false, 0
+                        +- Project [uuid#7 AS order_id#163, user_uuid#8 AS user_id#164, date#9 AS ordered_at#165, quantity#10, lower(trim(product#11, None)) AS product#167]
+                           +- FileScan csv [uuid#7,user_uuid#8,date#9,quantity#10,product#11] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[s3a://user-c-lestic-ece/bronze/orders.csv], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<uuid:string,user_uuid:string,date:timestamp,quantity:int,product:string>
+
+
++-----+-----+------------+
+|state|users|missing_city|
++-----+-----+------------+
+|   AE|    3|           3|
+|   FM|    3|           0|
+|   NJ|    2|           0|
+|   VT|    2|           0|
+|   DE|    2|           0|
+|   VI|    2|           0|
+|   NM|    2|           0|
+|   PA|    2|           0|
+|   TX|    2|           0|
+|   AP|    2|           2|
++-----+-----+------------+
+only showing top 10 rows
++------+------------+-------------------+
+|states|missing_city|states_without_city|
++------+------------+-------------------+
+|37    |6           |[AP, AE, AA]       |
++------+------------+-------------------+
+
+
+==============================================================================
+Write silver as Parquet
+==============================================================================
+silver build time (users+orders, transformations + Parquet write) s: 17.8
+silver/spark/users.parquet: 2 objects
+       11785  silver/spark/users.parquet/_SUCCESS
+        9581  silver/spark/users.parquet/part-00000-eb35c0f3-23d0-48b7-ba53-93d1f3465b3f-c000.snappy.parquet
+silver/spark/orders.parquet: 2 objects
+       11799  silver/spark/orders.parquet/_SUCCESS
+      139556  silver/spark/orders.parquet/part-00000-dca5d254-adc4-4e49-ba77-1936bc76dcda-c000.snappy.parquet
+stg_users partitions: 1 | stg_orders partitions: 1
+Parquet read-back asserts OK: 50 2829
+
+==============================================================================
+Write silver as Iceberg tables
+==============================================================================
+       84055  warehouse/silver/orders/data/00000-80-26463339-964e-4eda-ae1a-00f61054f0c3-0-00001.parquet
+       84055  warehouse/silver/orders/data/00000-80-92c8cf5b-fd87-4afb-8ea5-0d9e944fea8e-0-00001.parquet
+        7346  warehouse/silver/orders/metadata/d18f7661-6e54-4ff7-b4f3-cb18a9504513-m0.avro
+        7347  warehouse/silver/orders/metadata/fd56ce32-8525-4b4a-9116-8b4de82fa83e-m0.avro
+        4457  warehouse/silver/orders/metadata/snap-2823914016604608623-1-fd56ce32-8525-4b4a-9116-8b4de82fa83e.avro
+        4457  warehouse/silver/orders/metadata/snap-415675405389209680-1-d18f7661-6e54-4ff7-b4f3-cb18a9504513.avro
+        1933  warehouse/silver/orders/metadata/v1.metadata.json
+        2962  warehouse/silver/orders/metadata/v2.metadata.json
+           1  warehouse/silver/orders/metadata/version-hint.text
++-------------------+---------+-----------------------+
+|snapshot_id        |operation|committed_at           |
++-------------------+---------+-----------------------+
+|2823914016604608623|overwrite|2026-10-07 14:35:52.344|
+|415675405389209680 |overwrite|2026-10-12 07:43:33.874|
++-------------------+---------+-----------------------+
+
++------------------------------------------------------------------------------------------------------------------+-----------+------------+------------------+
+|file_path                                                                                                         |file_format|record_count|file_size_in_bytes|
++------------------------------------------------------------------------------------------------------------------+-----------+------------+------------------+
+|s3a://user-c-lestic-ece/warehouse/silver/orders/data/00000-80-26463339-964e-4eda-ae1a-00f61054f0c3-0-00001.parquet|PARQUET    |2829        |84055             |
++------------------------------------------------------------------------------------------------------------------+-----------+------------+------------------+
+
+Iceberg read-back asserts OK: 50 2829
+
+==============================================================================
+Exercise 1: birthdate_is_valid (DataFrame vs SQL)
+==============================================================================
+rows differing between DataFrame and SQL versions: 0
++------------------+-----+
+|birthdate_is_valid|count|
++------------------+-----+
+|              true|   45|
+|             false|    5|
++------------------+-----+
+
++--------------+----------+--------------------------+
+|username      |birthdate |first_ordered_at          |
++--------------+----------+--------------------------+
+|nicolejohnson |2022-12-03|2020-01-20 04:25:18.263357|
+|dayderek      |2026-10-02|2020-02-03 12:36:43.393482|
+|ronaldstephens|2022-05-06|2020-02-26 09:46:06.054277|
+|cgrimes       |2024-07-15|2020-03-10 15:24:50.199645|
+|charleslandry |2025-11-30|2020-03-17 18:29:17.906428|
++--------------+----------+--------------------------+
+
+
+==============================================================================
+Exercise 2: Python UDF vs pandas_udf vs regexp_extract
+==============================================================================
+  regexp_extract  best    44.9 ms/run | same result as regexp_extract: True
+  python udf      best   107.2 ms/run | same result as regexp_extract: True
+  pandas_udf      best   109.3 ms/run | same result as regexp_extract: True
+
+==============================================================================
+Exercise 3: cache bronze and look at later stages
+==============================================================================
+  no cache, run 1: 672 ms
+    stage 272 | tasks=  1 | input=   7351 B (50 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 274 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 275 | tasks=  1 | input= 331568 B (3 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 277 | tasks=  2 | input= 331568 B (2829 rec) | shuffleRead=   208 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 280 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=149792 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 284 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+  no cache, run 2: 834 ms
+    stage 285 | tasks=  1 | input=   7351 B (50 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 287 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 288 | tasks=  1 | input= 331568 B (3 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 290 | tasks=  2 | input= 331568 B (2829 rec) | shuffleRead=   208 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 293 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=149792 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 297 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+  cache, run 1: 489 ms
+    stage 306 | tasks=  1 | input=   9416 B (1 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 308 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 309 | tasks=  1 | input= 147856 B (1 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 311 | tasks=  2 | input= 147856 B (1 rec) | shuffleRead=   208 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 314 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=149792 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 318 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+  cache, run 2: 444 ms
+    stage 319 | tasks=  1 | input=   9416 B (1 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 321 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 322 | tasks=  1 | input= 147856 B (1 rec) | shuffleRead=     0 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 324 | tasks=  2 | input= 147856 B (1 rec) | shuffleRead=   208 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 327 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=149792 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+    stage 331 | tasks=  1 | input=      0 B (0 rec) | shuffleRead=    59 B | $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java
+  Storage tab: [('FileScan csv [uuid#0,username#1,name#2,sex#3,addre', 1, 9416), ('FileScan csv [uuid#7,user_uuid#8,date#9,quantity#1', 1, 147856)]
+
+==============================================================================
+Exercise 4: append + VERSION AS OF (Iceberg) vs Parquet directory
+==============================================================================
++-------------------+------------------+---------+-----------------------+
+|snapshot_id        |parent_id         |operation|committed_at           |
++-------------------+------------------+---------+-----------------------+
+|2823914016604608623|NULL              |overwrite|2026-10-07 14:35:52.344|
+|415675405389209680 |NULL              |overwrite|2026-10-12 07:43:33.874|
+|1907723984835711377|415675405389209680|append   |2026-10-12 07:44:01.838|
++-------------------+------------------+---------+-----------------------+
+
+current rows: 2830
+VERSION AS OF 415675405389209680: 2829
++-----------------------+-------------------+-------------------+
+|made_current_at        |snapshot_id        |is_current_ancestor|
++-----------------------+-------------------+-------------------+
+|2026-10-07 14:35:52.344|2823914016604608623|false              |
+|2026-10-12 07:43:33.874|415675405389209680 |true               |
+|2026-10-12 07:44:01.838|1907723984835711377|true               |
++-----------------------+-------------------+-------------------+
+
+parquet before append: 2829
+parquet after append : 2830 | objects: 4 (no snapshot, no history: the previous state is gone)
+VERSION AS OF on Parquet -> AnalysisException [UNSUPPORTED_FEATURE.TIME_TRAVEL] The feature is not supported: Time travel on the relation: `parquet`.`s3a://user-c-lestic-ece/silver/spark/orders_ap
+
+TOTAL runtime s: 73.0

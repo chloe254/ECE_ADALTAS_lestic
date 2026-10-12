@@ -1,0 +1,46 @@
+[90m-- Loading resources from /home/onyxia/.duckdbrc
+[00m┌────────┬──────────┬────────────┬─────────┬───────────┐
+│ model  │ dbt_rows │ spark_rows │ dbt_qty │ spark_qty │
+├────────┼──────────┼────────────┼─────────┼───────────┤
+│ orders │ 2829     │ 2829       │ 8615    │ 8615      │
+└────────┴──────────┴────────────┴─────────┴───────────┘
+┌───────┬──────────┬────────────┬───────────────┬─────────────────┐
+│ model │ dbt_rows │ spark_rows │ dbt_city_null │ spark_city_null │
+├───────┼──────────┼────────────┼───────────────┼─────────────────┤
+│ users │ 50       │ 50         │ 6             │ 6               │
+└───────┴──────────┴────────────┴───────────────┴─────────────────┘
+┌─────────────┬──────────────────────────┬────────────┐
+│ column_name │         dbt_type         │ spark_type │
+├─────────────┼──────────────────────────┼────────────┤
+│ order_id    │ UUID                     │ VARCHAR    │
+│ user_id     │ UUID                     │ VARCHAR    │
+│ ordered_at  │ TIMESTAMP WITH TIME ZONE │ TIMESTAMP  │
+│ quantity    │ INTEGER                  │ INTEGER    │
+│ product     │ VARCHAR                  │ VARCHAR    │
+└─────────────┴──────────────────────────┴────────────┘
+┌─────────────────────┬──────────┬────────────┐
+│     column_name     │ dbt_type │ spark_type │
+├─────────────────────┼──────────┼────────────┤
+│ user_id             │ UUID     │ VARCHAR    │
+│ username            │ VARCHAR  │ VARCHAR    │
+│ name                │ VARCHAR  │ VARCHAR    │
+│ sex                 │ VARCHAR  │ VARCHAR    │
+│ email               │ VARCHAR  │ VARCHAR    │
+│ birthdate           │ DATE     │ DATE       │
+│ street              │ VARCHAR  │ VARCHAR    │
+│ city                │ VARCHAR  │ VARCHAR    │
+│ state               │ VARCHAR  │ VARCHAR    │
+│ zip_code            │ VARCHAR  │ VARCHAR    │
+│ username_normalized │ VARCHAR  │ NULL       │
+│ birthdate_is_valid  │ BOOLEAN  │ NULL       │
+└─────────────────────┴──────────┴────────────┘
+┌──────────────────────────────┐
+│ orders_rows_only_in_one_side │
+├──────────────────────────────┤
+│ 0                            │
+└──────────────────────────────┘
+┌─────────────┬───────────────┐
+│ dbt_invalid │ spark_invalid │
+├─────────────┼───────────────┤
+│ 5           │ 5             │
+└─────────────┴───────────────┘
